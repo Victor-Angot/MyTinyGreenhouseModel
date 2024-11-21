@@ -25,7 +25,7 @@ DEFAULT_PARAMS = {
     'LAI': 3.0, # leaf area index
     'rho_air': 1.2, 
     'c_air': 1008.0,
-    'D_air': 50, # air flow 
+    'D_air': 50.0, # air flow 
     'r_b': 275.0, 
     'cp': 4185, 
     'm_target_star': 0.7, 
@@ -120,9 +120,8 @@ def Q_fog(T_i, T_target, delta_t):
     Q_sens_val = Q_sens(T_i, T_target)
     return Q_sens_val + Q_lat_val
 
-def Q_vent_simple(T_0, T_i):
+def Q_vent_simple(T_0, T_i, D_air):
     '''Calculate the simplified ventilation heat flow in a greenhouse.'''
     c_air = DEFAULT_PARAMS['c_air']
-    D_air = DEFAULT_PARAMS['D_air']
     Q_vent = D_air * c_air * (T_i - T_0) 
     return Q_vent

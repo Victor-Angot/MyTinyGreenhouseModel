@@ -12,6 +12,7 @@ from utils import *
 def thermal_bilan(T_i, T_0, I_global, fog_enabled):
     A_cover = st.session_state.A_cover
     A_floor = st.session_state.A_floor
+    D_air = st.session_state.D_air
 
     Q_cond_val = Q_cond(T_i, T_0, A_cover) # Conduction heat transfer U*A*(T_i-T_0)
     Q_conv_val = Q_conv(T_i, T_0, A_cover) # Convection heat transfer h*A*(T_i-T_0)
@@ -21,8 +22,7 @@ def thermal_bilan(T_i, T_0, I_global, fog_enabled):
     Q_solar_val = Q_solar(I_global, A_floor) # Solar heat transfer tau_cover*A_floor*I_global
     Q_floor_val = Q_long_floor(st.session_state.T_floor) # Floor radiation epsilon_floor*sigma*A_floor*f_sol*(T_floor^4)
     Q_sky_val = Q_long_sky(T_0, A_cover) # Sky radiation epsilon_sky*sigma*A_cover*tau_cover*(T_sky^4)
-    Q_vent_val = Q_vent_simple(T_0, T_i) # Ventilation heat 
-    qAir = DEFAULT_PARAMS['c_air']*DEFAULT_PARAMS['rho_air']*DEFAULT_PARAMS['V_zone'] # Heat capacity of the air in the greenhouse
+    Q_vent_val = Q_vent_simple(T_0, T_i, D_air) # Ventilation heat 
 
     Q_gain = Q_floor_val + Q_solar_val + Q_sky_val + 0.5*Q_cover_val
     Q_losses = Q_cond_val + Q_conv_val + 0.5*Q_cover_val + Q_crop_val + Q_fog_val + Q_vent_val
@@ -106,25 +106,29 @@ if st.session_state.time_str != st.session_state.prev_time_str:
 
     st.session_state.prev_time_str = st.session_state.time_str
 
+T_int = fsolve(thermal_bilan, 30, args=(st.session_state.T_0, st.session_state.I_global, True))[0]
+st.write(f"**Estimated inside temperature:** {T_int:.2f} °C")
+
 st.sidebar.header("Temperature and solar radiation")
-st.sidebar.slider("Global solar radiation [W/m²]", 0.0, 1360.0, key='I_global')
+st.sidebar.slider("Global solar radiation [$W/m^2$]", 0.0, 1360.0, key='I_global')
 #st.sidebar.slider("Indoor temperature (T_i) [°C]", -10.0, 50.0, key='T_i')
-st.sidebar.slider("Outdoor temperature (T_0) [°C]", -10.0, 50.0, key='T_0')
+st.sidebar.slider("Outdoor temperature [$°C$]", -10.0, 50.0, key='T_0')
 #st.sidebar.slider("Outdoor wall temperature [°C]", -10.0, 50.0, key='T_cover')
 #st.sidebar.slider("Sky temperature [°C]", -10.0, 20.0, key='T_sky')
 #st.sidebar.slider("Floor temperature [°C]", -10.0, 50.0, key='T_floor')
-st.sidebar.slider("Fog water temperature [°C]", 0.0, 40.0, key='T_target')
+st.sidebar.slider("Fog water temperature [$°C$]", 0.0, 40.0, key='T_target')
+st.sidebar.slider("Ventilation air flow rate [$m^3/s$]", 0.0, 100.0, key='D_air')
 
 T_i = st.session_state['T_i']
 T_0 = st.session_state['T_0']
 T_cover = st.session_state['T_cover']
-# = st.session_state['T_sky']
 T_floor = st.session_state['T_floor']
 T_target = st.session_state['T_target']
 A_cover = st.session_state['A_cover']
 A_floor = st.session_state['A_floor']
 I_global = st.session_state['I_global']
 delta_t = st.session_state['delta_t']
+D_air = st.session_state['D_air']
 
 # Calculate heat transfer rates
 Q_cond_val = Q_cond(T_cover, T_0, A_cover)
@@ -139,7 +143,7 @@ Q_crop_val = Q_crop(T_i, A_floor)
 Q_lat_val = Q_lat(delta_t)
 Q_sens_val = Q_sens(T_i, T_target) 
 Q_fog_val = Q_fog(T_i, T_target, delta_t)
-Q_vent_val = abs(Q_vent_simple(T_0, T_i))
+Q_vent_val = abs(Q_vent_simple(T_0, T_i, D_air))
 net_heat = Q_cond_conv_val + Q_solar_val + Q_long_val + Q_crop_val + Q_fog_val + Q_floor_rad_val + Q_vent_val
 
 flows = {
@@ -365,7 +369,7 @@ st.write(f"**Heat Exchange with Crops (Q_crop):** {Q_crop_val:.2f} W")
 st.write(f"**Heat Exchange with Fog (Q_fog):** {Q_fog_val:.2f} W")
 st.write(f"**Maximum Latent Heat Exchange (Q_lat):** {Q_lat_val:.2f} W")
 st.write(f"**Maximum Sensible Heat Exchange (Q_sens):** {Q_sens_val:.2f} W")
-st.write(f"**Ventilation Heat (Q_vent):** {Q_vent_val:.2f} W")
+st.write(f"**Ventilation Heat Flow (Q_vent):** {Q_vent_val:.2f} W")
 
 
 heat_flows = {
