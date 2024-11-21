@@ -9,6 +9,37 @@ from scipy.optimize import fsolve
 
 from utils import * 
 
+def thermal_bilan(T_i, T_0, I_global, fog_enabled):
+    A_cover = st.session_state.A_cover
+    A_floor = st.session_state.A_floor
+
+    Q_cond_val = Q_cond(T_i, T_0, A_cover) # Conduction heat transfer U*A*(T_i-T_0)
+    Q_conv_val = Q_conv(T_i, T_0, A_cover) # Convection heat transfer h*A*(T_i-T_0)
+    Q_cover_val = Q_long_cover(T_i, A_cover) # Long-wavelength radiation heat transfer between the greenhouse and the cover epsilon_i*sigma*A*(T_i^4)
+    Q_crop_val = Q_crop(T_i, A_floor) # Heat exchange with crops 2*A_floor*LAI*rho_air*c_air*(T_i-T_plant)/r_b
+    Q_fog_val = Q_fog(T_i, st.session_state.T_target, st.session_state.delta_t) if fog_enabled else 0 # Heat exchange with fog Q_sens + Q_lat
+    Q_solar_val = Q_solar(I_global, A_floor) # Solar heat transfer tau_cover*A_floor*I_global
+    Q_floor_val = Q_long_floor(st.session_state.T_floor) # Floor radiation epsilon_floor*sigma*A_floor*f_sol*(T_floor^4)
+    Q_sky_val = Q_long_sky(T_0, A_cover) # Sky radiation epsilon_sky*sigma*A_cover*tau_cover*(T_sky^4)
+    Q_vent_val = Q_vent_simple(T_0, T_i) # Ventilation heat 
+    qAir = DEFAULT_PARAMS['c_air']*DEFAULT_PARAMS['rho_air']*DEFAULT_PARAMS['V_zone'] # Heat capacity of the air in the greenhouse
+
+    Q_gain = Q_floor_val + Q_solar_val + Q_sky_val + 0.5*Q_cover_val
+    Q_losses = Q_cond_val + Q_conv_val + 0.5*Q_cover_val + Q_crop_val + Q_fog_val + Q_vent_val
+    delta = Q_gain - Q_losses
+    return delta
+
+def estimate_temperature(T_0, daytime, fog_enabled):
+    if daytime:
+        T_increase = np.random.uniform(5, 15)  # Typical increase during the day
+    else:
+        T_increase = np.random.uniform(2, 5)  # Typical increase at night
+    
+    if fog_enabled:
+        T_increase *= 0.4  # 40% lower temperature increase with fogging
+    
+    return T_0 + T_increase
+
 # Initialize session_state with default values
 for key, value in DEFAULT_PARAMS.items():
     if key not in st.session_state:
@@ -55,10 +86,6 @@ if st.session_state.time_str != st.session_state.prev_time_str:
     # Linear interpolation of outdoor temperature (T_0)
     T_0 = np.interp(hour_mod, times, temperatures)
 
-    st.session_state.T_0 = T_0
-    st.session_state.T_i = T_0 + 5       # Indoor temperature
-    st.session_state.T_cover = T_0 + 10   # Outdoor wall temperature
-
     # Calculation of global solar radiation (I_global)
     sunrise = 6.0
     sunset = 18.0
@@ -70,6 +97,10 @@ if st.session_state.time_str != st.session_state.prev_time_str:
             I_global = 0.0
     else:
         I_global = 0.0  # No solar radiation at night
+    
+    st.session_state.T_0 = T_0
+    st.session_state.T_i = estimate_temperature(st.session_state.T_i, 6 <= hour_mod <= 18, True)
+    st.session_state.T_cover = st.session_state.T_i  # Outdoor wall temperature
 
     st.session_state.I_global = I_global
 
@@ -79,7 +110,7 @@ st.sidebar.header("Temperature and solar radiation")
 st.sidebar.slider("Global solar radiation [W/m²]", 0.0, 1360.0, key='I_global')
 #st.sidebar.slider("Indoor temperature (T_i) [°C]", -10.0, 50.0, key='T_i')
 st.sidebar.slider("Outdoor temperature (T_0) [°C]", -10.0, 50.0, key='T_0')
-st.sidebar.slider("Outdoor wall temperature [°C]", -10.0, 50.0, key='T_cover')
+#st.sidebar.slider("Outdoor wall temperature [°C]", -10.0, 50.0, key='T_cover')
 #st.sidebar.slider("Sky temperature [°C]", -10.0, 20.0, key='T_sky')
 #st.sidebar.slider("Floor temperature [°C]", -10.0, 50.0, key='T_floor')
 st.sidebar.slider("Fog water temperature [°C]", 0.0, 40.0, key='T_target')
@@ -108,44 +139,16 @@ Q_crop_val = Q_crop(T_i, A_floor)
 Q_lat_val = Q_lat(delta_t)
 Q_sens_val = Q_sens(T_i, T_target) 
 Q_fog_val = Q_fog(T_i, T_target, delta_t)
-net_heat = Q_cond_conv_val + Q_solar_val + Q_long_val + Q_crop_val + Q_fog_val + Q_floor_rad_val
-
-def thermal_bilan(T_i, T_0, I_global, fog_enabled):
-    A_cover = st.session_state.A_cover
-    A_floor = st.session_state.A_floor
-
-    Q_cond_val = Q_cond(T_i, T_0, A_cover) # Conduction heat transfer U*A*(T_i-T_0)
-    Q_conv_val = Q_conv(T_i, T_0, A_cover) # Convection heat transfer h*A*(T_i-T_0)
-    Q_cover_val = Q_long_cover(T_i, A_cover) # Long-wavelength radiation heat transfer between the greenhouse and the cover epsilon_i*sigma*A*(T_i^4)
-    Q_crop_val = Q_crop(T_i, A_floor) # Heat exchange with crops 2*A_floor*LAI*rho_air*c_air*(T_i-T_plant)/r_b
-    Q_fog_val = Q_fog(T_i, st.session_state.T_target, st.session_state.delta_t) if fog_enabled else 0 # Heat exchange with fog Q_sens + Q_lat
-    Q_solar_val = Q_solar(I_global, A_floor) # Solar heat transfer tau_cover*A_floor*I_global
-    Q_floor_val = Q_long_floor(st.session_state.T_floor) # Floor radiation epsilon_floor*sigma*A_floor*f_sol*(T_floor^4)
-    Q_sky_val = Q_long_sky(T_0, A_cover) # Sky radiation epsilon_sky*sigma*A_cover*tau_cover*(T_sky^4)
-    qAir = DEFAULT_PARAMS['c_air']*DEFAULT_PARAMS['rho_air']*DEFAULT_PARAMS['V_zone'] # Heat capacity of the air in the greenhouse
-
-    Q_gain = Q_floor_val + Q_solar_val + 0.4*Q_cover_val
-    Q_losses = Q_cond_val + Q_conv_val + 0.6*Q_cover_val + Q_sky_val + Q_crop_val + Q_fog_val # 60% of the cover radiation is emitted to the sky
-    delta = Q_gain - Q_losses  
-    return delta
-
-def estimate_temperature(T_0, daytime, fog_enabled):
-    if daytime:
-        T_increase = np.random.uniform(5, 15)  # Typical increase during the day
-    else:
-        T_increase = np.random.uniform(2, 5)  # Typical increase at night
-    
-    if fog_enabled:
-        T_increase *= 0.4  # 40% lower temperature increase with fogging
-    
-    return T_0 + T_increase
+Q_vent_val = abs(Q_vent_simple(T_0, T_i))
+net_heat = Q_cond_conv_val + Q_solar_val + Q_long_val + Q_crop_val + Q_fog_val + Q_floor_rad_val + Q_vent_val
 
 flows = {
     'Conduction & Convection': Q_cond_conv_val,
     'Solar Radiation': Q_solar_val,
     'IR Radiation (Floor, Sky, Cover)': Q_long_val,
-    'Heat Exchange with Crops': Q_crop_val,
-    'Heat Exchange with Fog': Q_fog_val,
+    'Crops evapotranspiration': Q_crop_val,
+    'Fog': Q_fog_val,
+    'Ventilation': Q_vent_val,
 }
 
 # Initialize the 'Others' sum
@@ -189,6 +192,7 @@ labels_sankey = [
     'Convection',
     'Heat Exchange with Crops',
     'Heat Exchange with Fog',
+    'Ventilation',
     'Cold sources',
     'Hot sources',
     'Net Heaflow'
@@ -202,20 +206,21 @@ cover_idx = labels_sankey.index('Cover Radiation')
 floor_idx = labels_sankey.index('Floor Radiation')
 crop_idx = labels_sankey.index('Heat Exchange with Crops')
 fog_idx = labels_sankey.index('Heat Exchange with Fog')
+vent_idx = labels_sankey.index('Ventilation')
 cold_idx = labels_sankey.index('Cold sources')
 hot_idx = labels_sankey.index('Hot sources')
 net_idx = labels_sankey.index('Net Heaflow')
 
 source = [
     solar_idx, sky_idx, conduction_idx, convection_idx,
-    floor_idx, crop_idx, fog_idx,
+    floor_idx, crop_idx, fog_idx, vent_idx,
     cover_idx, cover_idx,  
     cold_idx, hot_idx
 ]
 
 target = [
     hot_idx, hot_idx, cold_idx, cold_idx,
-    hot_idx, cold_idx, cold_idx,
+    hot_idx, cold_idx, cold_idx, cold_idx,
     cold_idx, hot_idx,  
     net_idx, net_idx
 ]
@@ -228,13 +233,14 @@ value = [
     Q_floor_rad_val,      # Floor Radiation -> Cold sources
     Q_crop_val,           # Heat Exchange with Crops -> Cold sources
     Q_fog_val,            # Heat Exchange with Fog -> Cold sources
+    Q_vent_val,           # Ventilation -> Cold sources
     Q_cover_val / 2,      # Cover Radiation -> Cold sources
     Q_cover_val / 2,      # Cover Radiation -> Hot sources
     None,                 # Cold sources -> Net Heaflow 
     None                  # Hot sources -> Net Heaflow 
 ]
 
-cold_flow_total = Q_cond_val + Q_conv_val + Q_crop_val + Q_fog_val + (Q_cover_val / 2)
+cold_flow_total = Q_cond_val + Q_conv_val + Q_crop_val + Q_fog_val + (Q_cover_val / 2) + Q_vent_val
 hot_flow_total = Q_solar_val + Q_sky_val + (Q_cover_val / 2) + Q_floor_rad_val
 
 value[-2] = cold_flow_total  # Cold sources -> Net Heaflow
@@ -249,6 +255,7 @@ node_colors = [
     '#00CED1',   # Floor Radiation
     '#32CD32',   # Heat Exchange with Crops
     '#7CFF7E',   # Heat Exchange with Fog
+    '#e9ff00',   # Ventilation
     '#0061ff',   # Cold sources
     '#e20f0f',   # Hot sources
     '#808080',   # Net Heaflow
@@ -262,6 +269,7 @@ link_colors = [
     node_colors[floor_idx],      # Floor Radiation -> Cold sources
     node_colors[crop_idx],       # Heat Exchange with Crops -> Cold sources
     node_colors[fog_idx],        # Heat Exchange with Fog -> Cold sources
+    node_colors[vent_idx],       # Ventilation -> Cold sources
     node_colors[cover_idx],      # Cover Radiation -> Cold sources
     node_colors[cover_idx],      # Cover Radiation -> Hot sources
     node_colors[cold_idx],       # Cold sources -> Net Heaflow
@@ -333,10 +341,10 @@ estimate_temperatures_fog = [
 st.subheader("Greenhouse Temperature Simulation")
 
 plt.figure(figsize=(10, 6))
-plt.plot(times_slice, temperatures_fog, label="model ith fogging", color="blue")
+plt.plot(times_slice, temperatures_fog, label="model with fogging", color="blue")
 plt.plot(times_slice, temperatures_no_fog, label="model without fogging", color="red")
-plt.plot(times_slice, estimate_temperatures_fog, label="Estimated with fogging", linestyle="--", color="blue")
-plt.plot(times_slice, estimate_temperatures_no_fog, label="Estimated without fogging", linestyle="--", color="red")
+plt.plot(times_slice, estimate_temperatures_fog, label="estimated with fogging", linestyle="--", color="blue")
+plt.plot(times_slice, estimate_temperatures_no_fog, label="estimated without fogging", linestyle="--", color="red")
 plt.xlabel("Time (h)")
 plt.ylabel("Inside temperature (°C)")
 plt.legend()
@@ -357,6 +365,7 @@ st.write(f"**Heat Exchange with Crops (Q_crop):** {Q_crop_val:.2f} W")
 st.write(f"**Heat Exchange with Fog (Q_fog):** {Q_fog_val:.2f} W")
 st.write(f"**Maximum Latent Heat Exchange (Q_lat):** {Q_lat_val:.2f} W")
 st.write(f"**Maximum Sensible Heat Exchange (Q_sens):** {Q_sens_val:.2f} W")
+st.write(f"**Ventilation Heat (Q_vent):** {Q_vent_val:.2f} W")
 
 
 heat_flows = {

@@ -7,11 +7,13 @@ l = 9.0
 H = 3.0
 
 DEFAULT_PARAMS = {
-    'U': 6,  # global conduction heat transfer coefficient W/m2K (cover interface)
+    'U': 5,  # global conduction heat transfer coefficient W/m2K (cover interface)
     'sigma': 5.67e-8, # Boltzmann constant W/m2K4
     'A_cover': 2*(L*H + l*H) + L*l,
     'h': 3, # global convection heat transfer coefficient W/m2K (cover interface)
     'tau_cover': 0.83, # transmittance of the cover
+    'A_roof': 0.6*L*l,
+    'A_side': 0.25*2*(L*H),
     'V_zone': L*l*H, 
     'A_floor': L*l,
     'Wsat': 0.033, # saturated moisture kg/m3
@@ -23,11 +25,12 @@ DEFAULT_PARAMS = {
     'LAI': 3.0, # leaf area index
     'rho_air': 1.2, 
     'c_air': 1008.0,
+    'D_air': 50, # air flow 
     'r_b': 275.0, 
     'cp': 4185, 
     'm_target_star': 0.7, 
     'delta_H' : 2.45e6, # latent heat of vaporization J/kg
-    'delta_t' : 1800.0,
+    'delta_t' : 450.0,
     'f_sens' : 0.1, # fraction maximal sensible heat 
     'f_lat' : 0.9, # fraction chaleur latente maximal. Représente l'efficacité de l'évaporation des gouttelettes. 
     # Toutes les gouttelettes pulvérisées ne s'évaporent pas instantanément. 
@@ -87,8 +90,8 @@ def Q_long_cover(T_i, A_cover):
     return DEFAULT_PARAMS['sigma']*A_cover*DEFAULT_PARAMS['tau_cover']*(DEFAULT_PARAMS['epsilon_i']*(T_i+273.15)**4)
 
 def Q_long_floor(T_floor):
-    #k = 0.1
-    f_sol = 1 # exp(-k*DEFAULT_PARAMS['LAI']) # fraction of soil not covered by plants
+    k = 0.5
+    f_sol = exp(-k*DEFAULT_PARAMS['LAI']) # fraction of soil not covered by plants
     return DEFAULT_PARAMS['epsilon_floor']*DEFAULT_PARAMS['sigma']*DEFAULT_PARAMS['A_floor']*f_sol*(T_floor+273.15)**4
 
 def Q_crop(T_i, A_floor):
@@ -116,3 +119,10 @@ def Q_fog(T_i, T_target, delta_t):
     Q_lat_val = Q_lat(delta_t)
     Q_sens_val = Q_sens(T_i, T_target)
     return Q_sens_val + Q_lat_val
+
+def Q_vent_simple(T_0, T_i):
+    '''Calculate the simplified ventilation heat flow in a greenhouse.'''
+    c_air = DEFAULT_PARAMS['c_air']
+    D_air = DEFAULT_PARAMS['D_air']
+    Q_vent = D_air * c_air * (T_i - T_0) 
+    return Q_vent
