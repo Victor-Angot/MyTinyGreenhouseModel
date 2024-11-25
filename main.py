@@ -117,7 +117,7 @@ st.sidebar.slider("Outdoor temperature [$°C$]", -10.0, 50.0, key='T_0')
 #st.sidebar.slider("Sky temperature [°C]", -10.0, 20.0, key='T_sky')
 #st.sidebar.slider("Floor temperature [°C]", -10.0, 50.0, key='T_floor')
 st.sidebar.slider("Fog water temperature [$°C$]", 0.0, 40.0, key='T_target')
-st.sidebar.slider("Ventilation air flow rate [$m^3/s$]", 0.0, 100.0, key='D_air')
+st.sidebar.slider("Ventilation air flow rate [$kg/s$]", 0.0, 100.0, key='D_air')
 
 T_i = st.session_state['T_i']
 T_0 = st.session_state['T_0']

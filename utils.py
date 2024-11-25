@@ -25,7 +25,7 @@ DEFAULT_PARAMS = {
     'LAI': 3.0, # leaf area index
     'rho_air': 1.2, 
     'c_air': 1008.0,
-    'D_air': 50.0, # air flow 
+    'D_air': 30.0, # air flow 
     'r_b': 275.0, 
     'cp': 4185, 
     'm_target_star': 0.7, 
