@@ -26,6 +26,7 @@ DEFAULT_PARAMS = {
     'rho_air': 1.2, 
     'c_air': 1008.0,
     'D_air': 30.0, # air flow 
+    'N': 2, # cloud cover (octas)
     'r_b': 275.0, 
     'cp': 4185, 
     'm_target_star': 0.7, 
@@ -80,9 +81,9 @@ def Q_solar(I_global, A_floor):
     radiation transmitted through the covering materials'''
     return DEFAULT_PARAMS['tau_cover']*A_floor*I_global 
 
-def Q_long_sky(T_0, A_cover):
+def Q_long_sky(T_0, A_cover, N):
     '''Q_long_sky represents the long-wavelength radiation heat transfer rate between the greenhouse and the sky'''
-    T_sky = calculate_sky_temperature(T_0, 2)
+    T_sky = calculate_sky_temperature(T_0, N)
     return DEFAULT_PARAMS['sigma']*A_cover*DEFAULT_PARAMS['tau_cover']*(DEFAULT_PARAMS['epsilon_sky']*(T_sky+273.15)**4)
 
 def Q_long_cover(T_i, A_cover):

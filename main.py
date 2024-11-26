@@ -13,6 +13,7 @@ def thermal_bilan(T_i, T_0, I_global, fog_enabled):
     A_cover = st.session_state.A_cover
     A_floor = st.session_state.A_floor
     D_air = st.session_state.D_air
+    N = st.session_state.N
 
     Q_cond_val = Q_cond(T_i, T_0, A_cover) # Conduction heat transfer U*A*(T_i-T_0)
     Q_conv_val = Q_conv(T_i, T_0, A_cover) # Convection heat transfer h*A*(T_i-T_0)
@@ -21,7 +22,7 @@ def thermal_bilan(T_i, T_0, I_global, fog_enabled):
     Q_fog_val = Q_fog(T_i, st.session_state.T_target, st.session_state.delta_t) if fog_enabled else 0 # Heat exchange with fog Q_sens + Q_lat
     Q_solar_val = Q_solar(I_global, A_floor) # Solar heat transfer tau_cover*A_floor*I_global
     Q_floor_val = Q_long_floor(st.session_state.T_floor) # Floor radiation epsilon_floor*sigma*A_floor*f_sol*(T_floor^4)
-    Q_sky_val = Q_long_sky(T_0, A_cover) # Sky radiation epsilon_sky*sigma*A_cover*tau_cover*(T_sky^4)
+    Q_sky_val = Q_long_sky(T_0, A_cover, N) # Sky radiation epsilon_sky*sigma*A_cover*tau_cover*(T_sky^4)
     Q_vent_val = Q_vent_simple(T_0, T_i, D_air) # Ventilation heat 
 
     Q_gain = Q_floor_val + Q_solar_val + Q_sky_val + 0.5*Q_cover_val
@@ -111,12 +112,9 @@ st.write(f"**Estimated inside temperature:** {T_int:.2f} °C")
 
 st.sidebar.header("Temperature and solar radiation")
 st.sidebar.slider("Global solar radiation [$W/m^2$]", 0.0, 1360.0, key='I_global')
-#st.sidebar.slider("Indoor temperature (T_i) [°C]", -10.0, 50.0, key='T_i')
-st.sidebar.slider("Outdoor temperature [$°C$]", -10.0, 50.0, key='T_0')
-#st.sidebar.slider("Outdoor wall temperature [°C]", -10.0, 50.0, key='T_cover')
-#st.sidebar.slider("Sky temperature [°C]", -10.0, 20.0, key='T_sky')
-#st.sidebar.slider("Floor temperature [°C]", -10.0, 50.0, key='T_floor')
+st.sidebar.slider("Outdoor temperature [$°C$]", 0.0, 50.0, key='T_0')
 st.sidebar.slider("Fog water temperature [$°C$]", 0.0, 40.0, key='T_target')
+st.sidebar.slider("Cloud cover (octas)", 0, 8, key='N')
 st.sidebar.slider("Ventilation air flow rate [$kg/s$]", 0.0, 100.0, key='D_air')
 
 T_i = st.session_state['T_i']
@@ -129,6 +127,7 @@ A_floor = st.session_state['A_floor']
 I_global = st.session_state['I_global']
 delta_t = st.session_state['delta_t']
 D_air = st.session_state['D_air']
+N = st.session_state['N']
 
 # Calculate heat transfer rates
 Q_cond_val = Q_cond(T_cover, T_0, A_cover)
@@ -136,7 +135,7 @@ Q_conv_val = Q_conv(T_cover, T_0, A_cover)
 Q_cond_conv_val = abs(Q_cond_val + Q_conv_val)
 Q_solar_val = Q_solar(I_global, A_floor)
 Q_floor_rad_val = Q_long_floor(T_floor)
-Q_sky_val = Q_long_sky(T_0, A_cover)
+Q_sky_val = Q_long_sky(T_0, A_cover, N)
 Q_cover_val = Q_long_cover(T_i, A_cover)
 Q_long_val = Q_sky_val + Q_cover_val + Q_floor_rad_val
 Q_crop_val = Q_crop(T_i, A_floor)
